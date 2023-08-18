@@ -5,8 +5,8 @@ Public version of my ChromaDB chatbot that keeps track of user profile and histo
 ## Setup
 
 1. Install chromadb and openai (in `requirements.txt` file)
-2. Update `user_profile.txt` file with your initial information
-3. Update `key_openai.txt` with your OpenAI API key
+2. Create & Update `user_profile.txt` file with your initial information
+3. Create & Update `key_openai.txt` with your OpenAI API key
 
 ## Usage
 

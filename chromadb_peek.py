@@ -2,7 +2,7 @@ import chromadb
 from chromadb.config import Settings
 from pprint import pprint as pp
 
-chroma_client = chromadb.PersistClient(path="chromadb")
+chroma_client = chromadb.PersistentClient(path="chromadb")
 collection = chroma_client.get_or_create_collection(name="knowledge_base")
 
 
