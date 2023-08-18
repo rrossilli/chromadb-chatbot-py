@@ -53,16 +53,12 @@ def chatbot(messages, model="gpt-4", temperature=0):
 
 
 def initialize_profile():
-    """
-    Initialize the user profile by prompting them for each field.
-    """
     fields = {
-        "Name": "John Doe",
+        "Name": "Timmy Turner",
         "Profession": "Engineer",
         "Interests": "Reading, Music, Traveling",
-        "Beliefs": "Stay positive and keep learning.",
+        "Beliefs": "The world is flat.",
         "Plans": "Travel more, read at least one book a month.",
-        "Project": "WebApp - A platform for book reviews.",
         "Preference": "Clear and concise."
     }
 
@@ -81,6 +77,7 @@ if __name__ == '__main__':
         with open('user_profile.txt', 'r', encoding='utf-8'):
             pass
     except FileNotFoundError:
+        print("\n\nNo user profile found. Help me create one.")
         initialize_profile()
 
     # instantiate ChromaDB
