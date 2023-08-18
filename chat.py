@@ -52,7 +52,37 @@ def chatbot(messages, model="gpt-4", temperature=0):
             sleep(2 ** (retry - 1) * 5)
 
 
+def initialize_profile():
+    """
+    Initialize the user profile by prompting them for each field.
+    """
+    fields = {
+        "Name": "John Doe",
+        "Profession": "Engineer",
+        "Interests": "Reading, Music, Traveling",
+        "Beliefs": "Stay positive and keep learning.",
+        "Plans": "Travel more, read at least one book a month.",
+        "Project": "WebApp - A platform for book reviews.",
+        "Preference": "Clear and concise."
+    }
+
+    profile_data = []
+    for field, example in fields.items():
+        user_input = input(f"{field} (e.g., {example}): ")
+        profile_data.append(f"- {field}: {user_input}")
+
+    # Save the collected data to 'user_profile.txt'
+    save_file('user_profile.txt', '\n'.join(profile_data))
+
+
 if __name__ == '__main__':
+    # Check if user_profile.txt exists, if not, initialize profile
+    try:
+        with open('user_profile.txt', 'r', encoding='utf-8'):
+            pass
+    except FileNotFoundError:
+        initialize_profile()
+
     # instantiate ChromaDB
     chroma_client = chromadb.PersistentClient(path="chromadb")
     collection = chroma_client.get_or_create_collection(name="knowledge_base")
