@@ -1,4 +1,4 @@
-user_profile.example.txt
+user_profile.txt
 key_openai.txt
 api_logs/*
 chat_logs/*
