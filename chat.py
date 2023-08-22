@@ -1,94 +1,81 @@
-import chromadb
 from chromadb.config import Settings
-import openai
-import yaml
-from time import time, sleep
+from utils import save_file, open_file
+from helpers import chatbot
 from uuid import uuid4
+from time import time
+import chromadb
+import openai
 
-
-def save_yaml(filepath, data):
-    with open(filepath, 'w', encoding='utf-8') as file:
-        yaml.dump(data, file, allow_unicode=True)
-
-
-def save_file(filepath, content):
-    with open(filepath, 'w', encoding='utf-8') as outfile:
-        outfile.write(content)
-
-
-def open_file(filepath):
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as infile:
-        return infile.read()
-
-
-def chatbot(messages, model="gpt-4", temperature=0):
-    max_retry = 7
-    retry = 0
-    while True:
-        try:
-            response = openai.ChatCompletion.create(
-                model=model, messages=messages, temperature=temperature)
-            text = response['choices'][0]['message']['content']
-
-            # trim message object
-            debug_object = [i['content'] for i in messages]
-            debug_object.append(text)
-            save_yaml('api_logs/convo_%s.yaml' % time(), debug_object)
-            if response['usage']['total_tokens'] >= 7000:
-                a = messages.pop(1)
-
-            return text
-        except Exception as oops:
-            print(f'\n\nError communicating with OpenAI: "{oops}"')
-            if 'maximum context length' in str(oops):
-                a = messages.pop(1)
-                print('\n\n DEBUG: Trimming oldest message')
-                continue
-            retry += 1
-            if retry >= max_retry:
-                print(f"\n\nExiting due to excessive errors in API: {oops}")
-                exit(1)
-            print(f'\n\nRetrying in {2 ** (retry - 1) * 5} seconds...')
-            sleep(2 ** (retry - 1) * 5)
+from consts import (
+    CHROMADB_COLLECTION,
+    EXAMPLE_PROFILE,
+    PATH_CHAT_LOGS,
+    PATH_CHROMADB,
+    PATH_USER_PROFILE,
+    PATH_USER_OPENAI_KEY,
+    PATH_SYSTEM_DEFAULT,
+    PATH_SYSTEM_UPDATE_USER_PROFILE,
+    PATH_SYSTEM_SUBSTANTIATE_NEW_KB,
+    PATH_SYSTEM_UPDATE_EXISTING_KB,
+    PATH_SYSTEM_SPLIT_KB,
+    PATH_API_LOGS,
+    PATH_DB_LOGS,
+    PATH_USER_PROFILE_BACKUP,
+    SLUG_KB,
+    SLUG_PROFILE,
+    SLUG_WORDS,
+    SLUG_UPD
+)
 
 
 def initialize_profile():
-    fields = {
-        "Name": "Timmy Turner",
-        "Profession": "Engineer",
-        "Interests": "Reading, Music, Traveling",
-        "Beliefs": "The world is flat.",
-        "Plans": "Travel more, read at least one book a month.",
-        "Preference": "Clear and concise."
-    }
-
     profile_data = []
-    for field, example in fields.items():
+    for field, example in EXAMPLE_PROFILE.items():
         user_input = input(f"{field} (e.g., {example}): ")
         profile_data.append(f"- {field}: {user_input}")
 
-    # Save the collected data to 'user_profile.txt'
-    save_file('user_profile.txt', '\n'.join(profile_data))
+    # Save the collected data to PATH_USER_PROFILE
+    save_file(PATH_USER_PROFILE, '\n'.join(profile_data))
+    # save a backup file in case of corruption
+    save_file(PATH_USER_PROFILE_BACKUP, profile)
+
+
+def initialize_openai_key():
+    """
+    Prompt the user to enter their OpenAI key.
+    """
+    openai_key = input("Enter your OpenAI API key: ")
+    save_file(PATH_USER_OPENAI_KEY, openai_key)
 
 
 if __name__ == '__main__':
+
     # Check if user_profile.txt exists, if not, initialize profile
     try:
-        with open('user_profile.txt', 'r', encoding='utf-8'):
+        with open(PATH_USER_PROFILE, 'r', encoding='utf-8'):
             pass
     except FileNotFoundError:
         print("\n\nNo user profile found. Help me create one.")
         initialize_profile()
 
+    # Check if key_openai.txt exists, if not, initialize OpenAI key
+    try:
+        with open(PATH_USER_OPENAI_KEY, 'r', encoding='utf-8'):
+            pass
+    except FileNotFoundError:
+        print("\n\nNo OpenAI API key found.")
+        initialize_openai_key()
+
     # instantiate ChromaDB
-    chroma_client = chromadb.PersistentClient(path="chromadb")
-    collection = chroma_client.get_or_create_collection(name="knowledge_base")
+    chroma_client = chromadb.PersistentClient(path=PATH_CHROMADB)
+    collection = chroma_client.get_or_create_collection(
+        name=CHROMADB_COLLECTION)
 
     # instantiate chatbot
-    openai.api_key = open_file('key_openai.txt')
+    openai.api_key = open_file(PATH_USER_OPENAI_KEY)
     conversation = list()
     conversation.append(
-        {'role': 'system', 'content': open_file('system_default.txt')})
+        {'role': 'system', 'content': open_file(PATH_SYSTEM_DEFAULT)})
     user_messages = list()
     all_messages = list()
 
@@ -98,7 +85,7 @@ if __name__ == '__main__':
         user_messages.append(text)
         all_messages.append('USER: %s' % text)
         conversation.append({'role': 'user', 'content': text})
-        save_file('chat_logs/chat_%s_user.txt' % time(), text)
+        save_file(PATH_CHAT_LOGS + '/chat_%s_user.txt' % time(), text)
 
         # update main scratchpad
         if len(all_messages) > 5:
@@ -106,21 +93,21 @@ if __name__ == '__main__':
         main_scratchpad = '\n\n'.join(all_messages).strip()
 
         # search KB, update default system
-        current_profile = open_file('user_profile.txt')
+        current_profile = open_file(PATH_USER_PROFILE)
         kb = 'No KB articles yet'
         if collection.count() > 0:
             results = collection.query(
                 query_texts=[main_scratchpad], n_results=1)
             kb = results['documents'][0][0]
             # print('\n\nDEBUG: Found results %s' % results)
-        default_system = open_file('system_default.txt').replace(
-            '<<PROFILE>>', current_profile).replace('<<KB>>', kb)
+        default_system = open_file(PATH_SYSTEM_DEFAULT).replace(
+            SLUG_PROFILE, current_profile).replace(SLUG_KB, kb)
         # print('SYSTEM: %s' % default_system)
         conversation[0]['content'] = default_system
 
         # generate a response
         response = chatbot(conversation)
-        save_file('chat_logs/chat_%s_chatbot.txt' % time(), response)
+        save_file(PATH_CHAT_LOGS + '/chat_%s_chatbot.txt' % time(), response)
         conversation.append({'role': 'assistant', 'content': response})
         all_messages.append('CHATBOT: %s' % response)
         print('\n\nCHATBOT: %s' % response)
@@ -134,12 +121,12 @@ if __name__ == '__main__':
         print('\n\nUpdating user profile...')
         profile_length = len(current_profile.split(' '))
         profile_conversation = list()
-        profile_conversation.append({'role': 'system', 'content': open_file('system_update_user_profile.txt').replace(
-            '<<UPD>>', current_profile).replace('<<WORDS>>', str(profile_length))})
+        profile_conversation.append({'role': 'system', 'content': open_file(PATH_SYSTEM_UPDATE_USER_PROFILE).replace(
+            SLUG_UPD, current_profile).replace(SLUG_WORDS, str(profile_length))})
         profile_conversation.append(
             {'role': 'user', 'content': user_scratchpad})
         profile = chatbot(profile_conversation)
-        save_file('user_profile.txt', profile)
+        save_file(PATH_USER_PROFILE, profile)
 
         # update main scratchpad
         if len(all_messages) > 5:
@@ -152,12 +139,12 @@ if __name__ == '__main__':
             # yay first KB!
             kb_convo = list()
             kb_convo.append({'role': 'system', 'content': open_file(
-                'system_instantiate_new_kb.txt')})
+                PATH_SYSTEM_SUBSTANTIATE_NEW_KB)})
             kb_convo.append({'role': 'user', 'content': main_scratchpad})
             article = chatbot(kb_convo)
             new_id = str(uuid4())
             collection.add(documents=[article], ids=[new_id])
-            save_file('db_logs/log_%s_add.txt' %
+            save_file(PATH_DB_LOGS + '/log_%s_add.txt' %
                       time(), 'Added document %s:\n%s' % (new_id, article))
         else:
             results = collection.query(
@@ -168,20 +155,21 @@ if __name__ == '__main__':
             # Expand current KB
             kb_convo = list()
             kb_convo.append({'role': 'system', 'content': open_file(
-                'system_update_existing_kb.txt').replace('<<KB>>', kb)})
+                PATH_SYSTEM_UPDATE_EXISTING_KB).replace(SLUG_KB, kb)})
             kb_convo.append({'role': 'user', 'content': main_scratchpad})
             article = chatbot(kb_convo)
             collection.update(ids=[kb_id], documents=[article])
-            save_file('db_logs/log_%s_update.txt' %
+            save_file(PATH_DB_LOGS + '/log_%s_update.txt' %
                       time(), 'Updated document %s:\n%s' % (kb_id, article))
             # TODO - save more info in DB logs, probably as YAML file (original article, new info, final article)
 
             # Split KB if too large
             kb_len = len(article.split(' '))
             if kb_len > 1000:
+                print('\n\nSplitting KB...')
                 kb_convo = list()
                 kb_convo.append(
-                    {'role': 'system', 'content': open_file('system_split_kb.txt')})
+                    {'role': 'system', 'content': open_file(PATH_SYSTEM_SPLIT_KB)})
                 kb_convo.append({'role': 'user', 'content': article})
                 articles = chatbot(kb_convo).split('ARTICLE 2:')
                 a1 = articles[0].replace('ARTICLE 1:', '').strip()
@@ -189,5 +177,5 @@ if __name__ == '__main__':
                 collection.update(ids=[kb_id], documents=[a1])
                 new_id = str(uuid4())
                 collection.add(documents=[a2], ids=[new_id])
-                save_file('db_logs/log_%s_split.txt' % time(),
+                save_file(PATH_DB_LOGS + '/log_%s_split.txt' % time(),
                           'Split document %s, added %s:\n%s\n\n%s' % (kb_id, new_id, a1, a2))

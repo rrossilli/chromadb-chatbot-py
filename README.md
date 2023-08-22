@@ -1,17 +1,16 @@
 # ChromaDB Chatbot
 
-Public version of my ChromaDB chatbot that keeps track of user profile and historical topics. Should be mostly ready to go right out of the box. 
+_work in progress_
 
 ## Setup
 
-1. Install chromadb and openai (in `requirements.txt` file)
-2. Create & Update `user_profile.txt` file with your initial information
-3. Create & Update `key_openai.txt` with your OpenAI API key
+Install chromadb and openai (in `requirements.txt` file)
 
 ## Usage
 
 - Main chat client: `python chat.py`
 - Take a look in your KB: `python chromadb_peek.py`
+- Provide a document (experimental): `python source_file.py`
 
 ## Code Explanation
 
@@ -28,9 +27,3 @@ This Python script serves as the implementation of a chatbot that leverages the 
    - **Updates the knowledge base** with the most recent conversation, either adding a new entry or updating an existing entry. If an existing entry becomes too long, it's split into two separate entries.
 
 The script logs all interactions with the OpenAI API and updates to the knowledge base, providing a record of the chatbot's operations and aiding in debugging and optimization efforts. The use of the ChromaDB library allows for scalable storage and retrieval of the chatbot's knowledge base, accommodating a growing number of conversations and data points.
-
-But seriously just look at the code, it's pretty straight forward. 
-
-## Contributing
-
-You're welcome to submit a pull request to make mild changes or fix bugs. Any substantial refactors will be rejected. If you want to take this work and modify it, please just work on your own fork. This repo will eventually be made a public readonly archive. 
